@@ -19,7 +19,8 @@ import {
   Sparkles,
   PhoneCall,
   Calendar,
-  FileDown
+  FileDown,
+  Mail
 } from 'lucide-react';
 
 export default function PropertyDetails({ 
@@ -31,7 +32,9 @@ export default function PropertyDetails({
   onShareWhatsApp,
   isSharing = false,
   onGenerateBrochure,
-  isGenerating = false
+  isGenerating = false,
+  onShareEmail,
+  isEmailSharing = false,
 }) {
   const { isAuthenticated, isAdmin } = useAuth();
   const [property, setProperty] = useState(null);
@@ -191,6 +194,18 @@ export default function PropertyDetails({
           >
             <WhatsAppIcon size={16} />
             <span>{isSharing ? 'Generating Brochure...' : 'Share Brochure'}</span>
+          </button>
+
+          {/* Email Brochure Share */}
+          <button
+            type="button"
+            className="btn btn-email"
+            onClick={() => onShareEmail && onShareEmail(property)}
+            disabled={isEmailSharing}
+            title="Share property brochure via Email"
+          >
+            <Mail size={16} />
+            <span>{isEmailSharing ? 'Preparing...' : 'Email Brochure'}</span>
           </button>
 
           {/* Staff Edit & Delete - Admin Only */}
@@ -365,34 +380,66 @@ export default function PropertyDetails({
               </div>
             </div>
 
-            {/* Primary Action: Generate / Download PDF Brochure */}
-            <button
-              type="button"
-              className="btn btn-primary"
-              style={{ width: '100%', padding: '0.75rem 1rem', fontSize: '0.9rem', marginBottom: '0.65rem' }}
-              onClick={() => onGenerateBrochure && onGenerateBrochure(property)}
-              disabled={isGenerating}
-              title="Generate and Download official BLX Realty PDF brochure"
-            >
-              <FileDown size={17} />
-              <span>{isGenerating ? 'Generating Brochure PDF...' : 'Generate & Download Brochure'}</span>
-            </button>
+            {/* Brochure Generation Workflow */}
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.5rem' }}>
+                Brochure Workflow
+              </div>
+              {/* Step 1: Generate & Download PDF Brochure */}
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '0.75rem 1rem', fontSize: '0.9rem', marginBottom: '0.75rem' }}
+                onClick={() => onGenerateBrochure && onGenerateBrochure(property)}
+                disabled={isGenerating}
+                title="Generate and Download official BLX Realty PDF brochure"
+              >
+                <FileDown size={17} />
+                <span>{isGenerating ? 'Generating Brochure PDF...' : 'Generate & Download Brochure'}</span>
+              </button>
+            </div>
+
+            {/* Dedicated Email Brochure Section */}
+            <div style={{
+              background: 'var(--bg-subtle)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.9rem',
+              marginBottom: '0.85rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.35rem' }}>
+                <Mail size={16} style={{ color: '#2563eb' }} />
+                <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                  Email Brochure
+                </span>
+              </div>
+              <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: '0 0 0.75rem 0', lineHeight: '1.45' }}>
+                Open the dedicated email composer to review prefilled details, attach the generated PDF brochure, and send via Gmail.
+              </p>
+              <button
+                type="button"
+                className="btn btn-email"
+                style={{ width: '100%', padding: '0.65rem 1rem', fontSize: '0.88rem', fontWeight: 600 }}
+                onClick={() => onShareEmail && onShareEmail(property)}
+                disabled={isEmailSharing}
+                title="Open Email Composer for this property"
+              >
+                <Mail size={16} />
+                <span>{isEmailSharing ? 'Opening Composer...' : 'Email Brochure'}</span>
+              </button>
+            </div>
 
             {/* Direct WhatsApp Share Button */}
             <button
               type="button"
               className="btn btn-whatsapp"
-              style={{ width: '100%', padding: '0.75rem 1rem', fontSize: '0.9rem', marginBottom: '0.85rem' }}
+              style={{ width: '100%', padding: '0.7rem 1rem', fontSize: '0.88rem', marginBottom: '1.25rem' }}
               onClick={() => onShareWhatsApp(property)}
               disabled={isSharing}
             >
-              <WhatsAppIcon size={18} />
+              <WhatsAppIcon size={17} />
               <span>{isSharing ? 'Sharing Brochure...' : 'Share PDF on WhatsApp'}</span>
             </button>
-
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4', marginBottom: '1.5rem' }}>
-              Downloads verified PDF brochure and opens WhatsApp with client greeting text.
-            </div>
 
             {/* Sales Advisor Consultation Guide */}
             <div style={{ background: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-subtle)' }}>

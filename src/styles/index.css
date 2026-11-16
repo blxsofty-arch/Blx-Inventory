@@ -363,6 +363,22 @@ input, select, textarea {
   color: #ffffff;
 }
 
+.btn-email {
+  background-color: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+}
+
+.btn-email:hover {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.btn-email:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-icon-only {
   padding: 0.45rem;
   border-radius: var(--radius-sm);

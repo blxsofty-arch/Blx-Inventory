@@ -1,6 +1,106 @@
 import { generatePropertyPdf } from './pdfGenerator.js';
 
 /**
+ * Builds a formatted email subject line for a property share.
+ * @param {Object} property
+ * @returns {string}
+ */
+export function buildEmailSubject(property) {
+  return `Property Brochure – ${property.name}`;
+}
+
+/**
+ * Builds the pre-filled professional email body for a property share.
+ * Uses the recipient name placeholder if not yet known.
+ * @param {Object} property
+ * @param {string} [recipientName] - Optional recipient first name
+ * @returns {string}
+ */
+export function buildEmailMessage(property, recipientName = '') {
+  const salutation = recipientName && recipientName.trim()
+    ? `Dear ${recipientName.trim()},`
+    : 'Dear Sir/Madam,';
+
+  const locationLine = property.location
+    ? `, located in ${property.location}`
+    : '';
+
+  const lines = [
+    salutation,
+    '',
+    'Greetings from BLX Realty!',
+    '',
+    `Please find attached the property brochure for ${property.name}${locationLine}.`,
+    '',
+    'The brochure contains the property details, amenities, specifications and other relevant information for your reference.',
+    '',
+    'Please feel free to reach out to us if you require any additional information or would like to schedule a site visit.',
+    '',
+    'Best regards,',
+    'BLX Realty Team',
+  ];
+
+  return lines.join('\n');
+}
+
+/**
+ * Handles the complete Email Share workflow:
+ * 1. Uses prefilled / user-edited subject and message
+ * 2. Launches the configured Gmail integration (or mailto) with To, Subject, and prefilled Message
+ * 
+ * @param {Object} property - Property record from database
+ * @param {string|Object} emailOrOptions - Recipient email string OR composer options object
+ * @param {Object} [legacyOptions]
+ * @returns {Promise<{ success: boolean, recipientEmail: string, subject: string }>}
+ */
+export async function sharePropertyViaEmail(property, emailOrOptions, legacyOptions = {}) {
+  if (!property) {
+    throw new Error('No property data available for sharing');
+  }
+
+  let recipientEmail = '';
+  let subject = '';
+  let body = '';
+  let client = 'gmail';
+
+  if (typeof emailOrOptions === 'string') {
+    recipientEmail = emailOrOptions;
+    subject = legacyOptions.subject || buildEmailSubject(property);
+    body = legacyOptions.message || buildEmailMessage(property);
+    client = legacyOptions.client || 'gmail';
+  } else if (emailOrOptions && typeof emailOrOptions === 'object') {
+    recipientEmail = emailOrOptions.recipientEmail || '';
+    subject = emailOrOptions.subject || buildEmailSubject(property);
+    body = emailOrOptions.message || buildEmailMessage(property);
+    client = emailOrOptions.client || 'gmail';
+  }
+
+  if (!recipientEmail || !recipientEmail.trim()) {
+    throw new Error('Recipient email address is required');
+  }
+
+  const encodedTo = encodeURIComponent(recipientEmail.trim());
+  const encodedSubject = encodeURIComponent(subject);
+  const encodedBody = encodeURIComponent(body);
+
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodedTo}&su=${encodedSubject}&body=${encodedBody}`;
+  const mailtoUrl = `mailto:${encodedTo}?subject=${encodedSubject}&body=${encodedBody}`;
+
+  if (client === 'mailto') {
+    window.location.href = mailtoUrl;
+  } else {
+    // Open Gmail web compose in a new tab
+    const win = window.open(gmailUrl, '_blank', 'noopener,noreferrer');
+    // Fallback if popup blocker intercepted new window
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      window.location.href = mailtoUrl;
+    }
+  }
+
+  return { success: true, recipientEmail: recipientEmail.trim(), subject };
+}
+
+/**
  * Constructs the prefilled WhatsApp customer message according to BLX Realty specifications
  * @param {Object} property 
  * @returns {string}

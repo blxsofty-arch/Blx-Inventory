@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { api } from './api/client';
-import { sharePropertyOnWhatsApp } from './services/shareService';
+import { sharePropertyOnWhatsApp, sharePropertyViaEmail } from './services/shareService';
+import EmailShareModal from './components/EmailShareModal';
 import { generatePropertyPdf } from './services/pdfGenerator';
 import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
@@ -31,6 +32,10 @@ function AppContent() {
   const [sharingPropertyId, setSharingPropertyId] = useState(null);
   const [generatingPropertyId, setGeneratingPropertyId] = useState(null);
   const [shareToast, setShareToast] = useState(null);
+
+  // Email Share State
+  const [emailShareProperty, setEmailShareProperty] = useState(null);
+  const [emailSharingPropertyId, setEmailSharingPropertyId] = useState(null);
 
   // Redirect non-admin if currently on an admin-restricted tab (placed unconditionally at top)
   React.useEffect(() => {
@@ -174,6 +179,36 @@ function AppContent() {
     }
   };
 
+  // Email Share Workflow Handlers
+  const handleOpenEmailShare = (property) => {
+    if (emailSharingPropertyId) return;
+    setEmailShareProperty(property);
+  };
+
+  const handleSendEmail = async (property, emailData) => {
+    try {
+      setEmailSharingPropertyId(property.id);
+      const emailOptions = typeof emailData === 'string'
+        ? { recipientEmail: emailData }
+        : emailData;
+
+      await sharePropertyViaEmail(property, emailOptions);
+      setEmailShareProperty(null);
+      setShareToast({
+        type: 'success',
+        message: `Gmail opened with prefilled brochure message for ${property.name}.`,
+      });
+    } catch (err) {
+      console.error('Failed to send email:', err);
+      setShareToast({
+        type: 'error',
+        message: err.message || 'Failed to prepare email. Please try again.',
+      });
+    } finally {
+      setEmailSharingPropertyId(null);
+    }
+  };
+
   return (
     <div className="app-container">
       <Navbar
@@ -201,6 +236,8 @@ function AppContent() {
                 sharingPropertyId={sharingPropertyId}
                 onGenerateBrochure={handleGenerateBrochure}
                 generatingPropertyId={generatingPropertyId}
+                onShareEmail={handleOpenEmailShare}
+                emailSharingPropertyId={emailSharingPropertyId}
               />
             );
           }
@@ -218,6 +255,8 @@ function AppContent() {
                 isSharing={sharingPropertyId === selectedPropertyId}
                 onGenerateBrochure={handleGenerateBrochure}
                 isGenerating={generatingPropertyId === selectedPropertyId}
+                onShareEmail={handleOpenEmailShare}
+                isEmailSharing={emailSharingPropertyId === selectedPropertyId}
               />
             );
           }
@@ -266,6 +305,8 @@ function AppContent() {
               sharingPropertyId={sharingPropertyId}
               onGenerateBrochure={handleGenerateBrochure}
               generatingPropertyId={generatingPropertyId}
+              onShareEmail={handleOpenEmailShare}
+              emailSharingPropertyId={emailSharingPropertyId}
             />
           );
         })()}
@@ -276,6 +317,18 @@ function AppContent() {
         toast={shareToast}
         onDismiss={() => setShareToast(null)}
       />
+
+      {/* Email Share Modal / Composer */}
+      {emailShareProperty && (
+        <EmailShareModal
+          property={emailShareProperty}
+          onSend={handleSendEmail}
+          onClose={() => setEmailShareProperty(null)}
+          isSending={!!emailSharingPropertyId}
+          onGenerateBrochure={handleGenerateBrochure}
+          isGenerating={generatingPropertyId === emailShareProperty.id}
+        />
+      )}
     </div>
   );
 }

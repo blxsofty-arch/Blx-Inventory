@@ -71,7 +71,9 @@ export default function Dashboard({
   onShareWhatsApp,
   sharingPropertyId,
   onGenerateBrochure,
-  generatingPropertyId
+  generatingPropertyId,
+  onShareEmail,
+  emailSharingPropertyId,
 }) {
   const [stats, setStats] = useState({ total: 0, available: 0, sold: 0, onHold: 0, typesBreakdown: [] });
   const [allProperties, setAllProperties] = useState([]);
@@ -248,6 +250,8 @@ export default function Dashboard({
                   isSharing={sharingPropertyId === property.id}
                   onGenerateBrochure={onGenerateBrochure}
                   isGenerating={generatingPropertyId === property.id}
+                  onShareEmail={onShareEmail}
+                  isEmailSharing={emailSharingPropertyId === property.id}
                 />
               ))}
             </div>
@@ -366,6 +370,8 @@ export default function Dashboard({
                 isSharing={sharingPropertyId === property.id}
                 onGenerateBrochure={onGenerateBrochure}
                 isGenerating={generatingPropertyId === property.id}
+                onShareEmail={onShareEmail}
+                isEmailSharing={emailSharingPropertyId === property.id}
               />
             ))}
           </div>

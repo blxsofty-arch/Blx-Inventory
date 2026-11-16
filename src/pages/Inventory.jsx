@@ -17,6 +17,8 @@ export default function Inventory({
   sharingPropertyId,
   onGenerateBrochure,
   generatingPropertyId,
+  onShareEmail,
+  emailSharingPropertyId,
 }) {
   const { isAuthenticated, isAdmin } = useAuth();
   const [properties, setProperties] = useState([]);
@@ -164,6 +166,8 @@ export default function Inventory({
               isSharing={sharingPropertyId === prop.id}
               onGenerateBrochure={onGenerateBrochure}
               isGenerating={generatingPropertyId === prop.id}
+              onShareEmail={onShareEmail}
+              isEmailSharing={emailSharingPropertyId === prop.id}
             />
           ))}
         </div>
@@ -181,6 +185,8 @@ export default function Inventory({
               isSharing={sharingPropertyId === prop.id}
               onGenerateBrochure={onGenerateBrochure}
               isGenerating={generatingPropertyId === prop.id}
+              onShareEmail={onShareEmail}
+              isEmailSharing={emailSharingPropertyId === prop.id}
             />
           ))}
         </div>

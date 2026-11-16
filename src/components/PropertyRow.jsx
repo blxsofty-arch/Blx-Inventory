@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Edit3, Trash2, ArrowRight, ChevronDown, FileDown } from 'lucide-react';
+import { MapPin, Edit3, Trash2, ArrowRight, ChevronDown, FileDown, Mail } from 'lucide-react';
 import WhatsAppIcon from './WhatsAppIcon';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,7 +12,9 @@ export default function PropertyRow({
   onShareWhatsApp,
   isSharing = false,
   onGenerateBrochure,
-  isGenerating = false
+  isGenerating = false,
+  onShareEmail,
+  isEmailSharing = false,
 }) {
   const { isAuthenticated, isAdmin } = useAuth();
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
@@ -159,6 +161,16 @@ export default function PropertyRow({
           disabled={isSharing}
         >
           <WhatsAppIcon size={15} />
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-email btn-icon-only"
+          title="Share via Email"
+          onClick={() => onShareEmail && onShareEmail(property)}
+          disabled={isEmailSharing}
+        >
+          <Mail size={15} />
         </button>
 
         <button 

@@ -12,7 +12,7 @@ if (!SUPABASE_KEY) {
   console.warn('⚠️ [SUPABASE] Warning: No Supabase API key found in environment.');
 } else {
   // Safe log: Never print keys or secrets
-  console.log('⚡ [SUPABASE] Initialized database client for project:', SUPABASE_URL);
+  console.log('⚡ [SUPABASE] Initialized database client successfully.');
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY || 'unconfigured', {

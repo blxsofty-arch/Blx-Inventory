@@ -10,7 +10,8 @@ import {
   Edit3, 
   Trash2, 
   Share2,
-  FileDown
+  FileDown,
+  Mail
 } from 'lucide-react';
 import WhatsAppIcon from './WhatsAppIcon';
 import { useAuth } from '../context/AuthContext';
@@ -24,7 +25,9 @@ export default function PropertyCard({
   onShareWhatsApp,
   isSharing = false,
   onGenerateBrochure,
-  isGenerating = false
+  isGenerating = false,
+  onShareEmail,
+  isEmailSharing = false,
 }) {
   const { isAuthenticated, isAdmin } = useAuth();
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
@@ -221,6 +224,18 @@ export default function PropertyCard({
           >
             <WhatsAppIcon size={13} />
             <span>{isSharing ? 'Generating...' : 'WhatsApp'}</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-email"
+            style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
+            onClick={(e) => { e.stopPropagation(); onShareEmail && onShareEmail(property); }}
+            disabled={isEmailSharing}
+            title="Share property brochure via Email"
+          >
+            <Mail size={13} />
+            <span>{isEmailSharing ? 'Preparing...' : 'Email'}</span>
           </button>
 
           {isAdmin && (
