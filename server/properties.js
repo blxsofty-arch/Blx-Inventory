@@ -1,6 +1,6 @@
 import express from 'express';
 import { supabase } from './supabase.js';
-import { requireAdmin } from './auth.js';
+import { requireAdmin, requireAuth } from './auth.js';
 
 const router = express.Router();
 
@@ -66,8 +66,8 @@ async function processAndUploadImages(imagesArray) {
   return processed;
 }
 
-// GET /api/properties/stats
-router.get('/stats', async (req, res) => {
+// GET /api/properties/stats (Requires Authentication)
+router.get('/stats', requireAuth, async (req, res) => {
   try {
     const [
       { count: totalCount, error: err1 },
@@ -113,9 +113,9 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// GET /api/properties
+// GET /api/properties (Requires Authentication)
 // Filters: search, location, property_type, configuration, status, sort
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const { search, location, property_type, configuration, status, sort } = req.query;
 
@@ -257,8 +257,8 @@ router.get('/archived', requireAdmin, async (req, res) => {
   }
 });
 
-// GET /api/properties/:id
-router.get('/:id', async (req, res) => {
+// GET /api/properties/:id (Requires Authentication)
+router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('properties')

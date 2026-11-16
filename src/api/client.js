@@ -238,6 +238,20 @@ export const api = {
     return data;
   },
 
+  async adminResetPassword(id, newPassword) {
+    const res = await fetch(`${API_BASE}/users/${id}/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+      body: JSON.stringify({ newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to reset staff password');
+    return data;
+  },
+
   // Supabase Storage
   async uploadAsset(dataUrl, fileName = '', bucket = 'property-images') {
     const res = await fetch(`${API_BASE}/storage/upload`, {

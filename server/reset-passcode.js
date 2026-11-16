@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { supabase } from './supabase.js';
 
 const email = process.argv[2];
@@ -39,9 +40,10 @@ async function runReset() {
       process.exit(1);
     }
 
+    const hashedPassword = await bcrypt.hash(cleanPasscode, 10);
     const { error: updateErr } = await supabase
       .from('staff_users')
-      .update({ password: cleanPasscode })
+      .update({ password: hashedPassword })
       .ilike('email', cleanEmail);
 
     if (updateErr) {

@@ -4,22 +4,50 @@ import dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://vgnmtuegjidmlmurmzqb.supabase.co';
-// Use backend service role key if present for elevated backend actions; fallback to anon key
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!SUPABASE_KEY) {
-  console.warn('⚠️ [SUPABASE] Warning: No Supabase API key found in environment.');
+// Strict validation: Require SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY exclusively.
+// Never fall back to browser/anon or alternate secret keys on the backend.
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  const missing = [];
+  if (!SUPABASE_URL) missing.push('SUPABASE_URL');
+  if (!SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+
+  const message = `❌ [Supabase Configuration Error] Critical environment variable(s) missing: ${missing.join(
+    ', '
+  )}. The backend requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to operate.`;
+
+  if (process.env.NODE_ENV === 'production') {
+    // Fail safely at startup instead of serving requests with an unusable client.
+    console.error(message);
+    throw new Error('Supabase configuration error: missing required server environment variables.');
+  }
+
+  console.error(message);
 } else {
-  // Safe log: Never print keys or secrets
-  console.log('⚡ [SUPABASE] Initialized database client successfully.');
+  // Safe confirmation: Never logs the key or secrets
+  console.log('⚡ [SUPABASE] Initialized database client successfully with service-role privileges.');
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY || 'unconfigured', {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
+export const isSupabaseReady = () => Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 
-export const isSupabaseReady = () => Boolean(SUPABASE_KEY && SUPABASE_KEY !== 'unconfigured');
+export const supabase = isSupabaseReady()
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    })
+  : new Proxy(
+      {},
+      {
+        get(target, prop) {
+          throw new Error(
+            `Supabase client is not configured: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in server environment. Attempted to access property: "${String(
+              prop
+            )}"`
+          );
+        },
+      }
+    );

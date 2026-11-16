@@ -1,14 +1,38 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 import { supabase } from './supabase.js';
 
 const router = express.Router();
 
 // Active sessions cache in memory for low-latency requests
+// Value: { id, email, name, role, createdAt }
 export const activeSessions = new Map();
+
+// 7 days maximum session lifetime
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Rate limiting: 10 login requests per 15 minutes per IP
+export const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts from this IP. Please try again after 15 minutes.' },
+});
+
+// Rate limiting: 5 password recovery requests per 15 minutes per IP
+export const recoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many recovery attempts. Please try again after 15 minutes.' },
+});
 
 /**
  * Extracts and verifies the current session user from the Authorization header.
- * Checks memory cache first, then verifies in Supabase database to persist across restarts/serverless calls.
+ * Enforces automatic 7-day session expiration and database synchronization.
  */
 export async function getSessionUser(req) {
   const authHeader = req.headers.authorization;
@@ -17,17 +41,28 @@ export async function getSessionUser(req) {
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!token) return null;
 
+  const now = Date.now();
+
   // 1. Check in-memory session cache
-  const cachedUser = activeSessions.get(token);
-  if (cachedUser) {
-    return cachedUser;
+  const cached = activeSessions.get(token);
+  if (cached) {
+    if (cached.createdAt && (now - new Date(cached.createdAt).getTime() > SESSION_MAX_AGE_MS)) {
+      activeSessions.delete(token);
+      try {
+        await supabase.from('staff_sessions').delete().eq('token', token);
+      } catch (e) {
+        // Ignore
+      }
+      return null;
+    }
+    return cached;
   }
 
   // 2. Check Supabase staff_sessions table
   try {
     const { data: session, error } = await supabase
       .from('staff_sessions')
-      .select('token, user_id, email, name, role')
+      .select('token, user_id, email, name, role, created_at')
       .eq('token', token)
       .maybeSingle();
 
@@ -35,26 +70,41 @@ export async function getSessionUser(req) {
       return null;
     }
 
-    // Verify user role directly from staff_users
+    // Enforce 7-day session expiration
+    if (session.created_at && (now - new Date(session.created_at).getTime() > SESSION_MAX_AGE_MS)) {
+      activeSessions.delete(token);
+      await supabase.from('staff_sessions').delete().eq('token', token);
+      return null;
+    }
+
+    // Verify user role and active status directly from staff_users
     const { data: user } = await supabase
       .from('staff_users')
       .select('id, email, name, role')
       .eq('id', session.user_id)
       .maybeSingle();
 
-    const finalRole = user?.role || session.role;
+    if (!user) {
+      // User was deleted; invalidate session
+      activeSessions.delete(token);
+      await supabase.from('staff_sessions').delete().eq('token', token);
+      return null;
+    }
+
+    const finalRole = user.role || session.role;
     const normalizedRole = finalRole.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'EMPLOYEE';
     const verifiedUser = {
       id: session.user_id,
-      email: user?.email || session.email,
-      name: user?.name || session.name,
+      email: user.email || session.email,
+      name: user.name || session.name,
       role: normalizedRole,
+      createdAt: session.created_at,
     };
 
     activeSessions.set(token, verifiedUser);
     return verifiedUser;
   } catch (err) {
-    console.error('Session lookup error from Supabase:', err);
+    console.error('Session lookup error from Supabase:', err.message);
     return null;
   }
 }
@@ -101,7 +151,7 @@ export async function requireAdmin(req, res, next) {
 }
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -117,21 +167,46 @@ router.post('/login', async (req, res) => {
       .maybeSingle();
 
     if (error) {
-      console.error('Supabase query error during login:', error);
-      return res.status(500).json({ error: 'Database error: ' + error.message });
+      console.error('Supabase query error during login:', error.message);
+      return res.status(500).json({ error: 'Database error during authentication' });
     }
 
-    if (!user || user.password !== password) {
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Verify password with bcryptjs (with transparent migration fallback)
+    let isMatch = false;
+    const isBcryptHash = user.password && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'));
+
+    if (isBcryptHash) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      isMatch = (user.password === password);
+      // Auto-migrate plaintext password to bcrypt hash on valid login
+      if (isMatch) {
+        try {
+          const newHash = await bcrypt.hash(password, 10);
+          await supabase.from('staff_users').update({ password: newHash }).eq('id', user.id);
+        } catch (e) {
+          // Non-blocking fallback
+        }
+      }
+    }
+
+    if (!isMatch) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const normalizedRole = user.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'EMPLOYEE';
     const token = `blx_sess_${Math.random().toString(36).substring(2)}${Date.now()}`;
+    const createdAt = new Date().toISOString();
     const userData = {
       id: user.id,
       email: user.email,
       name: user.name,
       role: normalizedRole,
+      createdAt,
     };
 
     // Store in-memory cache
@@ -145,7 +220,7 @@ router.post('/login', async (req, res) => {
         email: user.email,
         name: user.name,
         role: normalizedRole,
-        created_at: new Date().toISOString(),
+        created_at: createdAt,
       });
     } catch (e) {
       console.warn('Could not persist session token to Supabase:', e.message);
@@ -154,10 +229,15 @@ router.post('/login', async (req, res) => {
     return res.json({
       message: 'Login successful',
       token,
-      user: userData,
+      user: {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
+      },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', error.message);
     return res.status(500).json({ error: 'Server error during authentication' });
   }
 });
@@ -168,7 +248,14 @@ router.get('/me', async (req, res) => {
   if (!user) {
     return res.status(401).json({ error: 'Session expired or invalid' });
   }
-  return res.json({ user });
+  return res.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    },
+  });
 });
 
 // POST /api/auth/logout
@@ -202,12 +289,19 @@ async function handleForgotPasscode(req, res) {
       .maybeSingle();
 
     if (error) {
-      console.error('Supabase error finding user for reset:', error);
+      console.error('Supabase error finding user for reset:', error.message);
       return res.status(500).json({ error: 'Database error searching for staff account' });
     }
 
+    // Always respond with a generic success message even if account does not exist
+    // to prevent email enumeration attacks
     if (!user) {
-      return res.status(404).json({ error: 'No staff account found with this email address' });
+      return res.json({
+        success: true,
+        message: 'If this registered staff account exists, recovery instructions have been initiated. Please check your email or contact an administrator for your verification code.',
+        email: cleanEmail,
+        expiresInMinutes: 15,
+      });
     }
 
     // Generate secure 6-digit one-time recovery code
@@ -233,19 +327,21 @@ async function handleForgotPasscode(req, res) {
     });
 
     if (insertErr) {
-      console.error('Error creating password reset record in Supabase:', insertErr);
+      console.error('Error creating password reset record in Supabase:', insertErr.message);
       return res.status(500).json({ error: 'Failed to record passcode reset request in database' });
     }
 
+    // SECURITY: The recovery code is NEVER returned in the API response.
+    // It is stored in the database with a 15-minute expiration and can only be used once.
+    // Admins can also issue/reset staff passcodes directly via the portal.
     return res.json({
       success: true,
-      message: 'Recovery code generated. Please enter your verification code and choose a new passcode.',
-      verificationCode: code,
+      message: 'If this registered staff account exists, a 15-minute recovery code has been recorded. Please check your email or contact an administrator for your verification code.',
       email: cleanEmail,
       expiresInMinutes: 15,
     });
   } catch (error) {
-    console.error('Forgot passcode error:', error);
+    console.error('Forgot passcode error:', error.message);
     return res.status(500).json({ error: 'Server error processing passcode recovery request' });
   }
 }
@@ -273,7 +369,7 @@ async function handleResetPasscode(req, res) {
     const cleanEmail = email.toLowerCase().trim();
     const cleanCode = code.trim();
 
-    // Look up active reset token in Supabase
+    // Look up active reset token in Supabase (must be unused and unexpired)
     const { data: record, error } = await supabase
       .from('password_resets')
       .select('id, email, token, expires_at, used')
@@ -291,30 +387,32 @@ async function handleResetPasscode(req, res) {
       });
     }
 
+    // Hash the new passcode with bcryptjs (cost factor 10)
+    const hashedPassword = await bcrypt.hash(newPassword.trim(), 10);
+
     // Update staff user password in Supabase
     const { error: updateErr } = await supabase
       .from('staff_users')
-      .update({ password: newPassword.trim() })
+      .update({ password: hashedPassword })
       .ilike('email', cleanEmail);
 
     if (updateErr) {
-      console.error('Error updating staff user password:', updateErr);
+      console.error('Error updating staff user password:', updateErr.message);
       return res.status(500).json({ error: 'Failed to update passcode in database' });
     }
 
-    // Mark reset code as used
+    // Mark reset code as used immediately (single-use enforcement)
     await supabase
       .from('password_resets')
       .update({ used: 1 })
       .eq('id', record.id);
 
-    // Invalidate old active sessions for this user
+    // Invalidate old active sessions for this user across database & cache
     await supabase
       .from('staff_sessions')
       .delete()
       .ilike('email', cleanEmail);
 
-    // Clear matching memory sessions
     for (const [t, u] of activeSessions.entries()) {
       if (u.email.toLowerCase() === cleanEmail) {
         activeSessions.delete(t);
@@ -326,15 +424,15 @@ async function handleResetPasscode(req, res) {
       message: 'Passcode successfully reset. You can now log in with your new passcode.',
     });
   } catch (error) {
-    console.error('Reset passcode error:', error);
+    console.error('Reset passcode error:', error.message);
     return res.status(500).json({ error: 'Server error updating passcode' });
   }
 }
 
-// POST /api/auth/forgot-passcode
-router.post('/forgot-passcode', handleForgotPasscode);
+// POST /api/auth/forgot-passcode (with rate limiting)
+router.post('/forgot-passcode', recoveryLimiter, handleForgotPasscode);
 
-// POST /api/auth/reset-passcode
-router.post('/reset-passcode', handleResetPasscode);
+// POST /api/auth/reset-passcode (with rate limiting)
+router.post('/reset-passcode', recoveryLimiter, handleResetPasscode);
 
 export default router;

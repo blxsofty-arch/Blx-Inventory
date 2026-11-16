@@ -1,3 +1,4 @@
+import path from 'path';
 import express from 'express';
 import { supabase } from './supabase.js';
 import { requireAuth } from './auth.js';
@@ -10,16 +11,22 @@ const BUCKETS = {
   INTERNAL: 'internal-records',
 };
 
+// Strict MIME type allowlist for property assets
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+]);
+
+// Maximum file size: 10MB per uploaded asset
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
 /**
  * POST /api/storage/upload
  * Uploads an image or document directly to Supabase Storage.
- * Accepts JSON payload:
- * {
- *   dataUrl: 'data:image/jpeg;base64,...', // Or raw base64 string
- *   fileName: 'elevation.jpg',            // Optional custom filename
- *   bucket: 'property-images',             // Default: 'property-images' (PUBLIC)
- *   folder: 'properties'                   // Default: 'properties'
- * }
+ * Enforces MIME type allowlisting, path traversal protection, and role-based bucket access.
  */
 router.post('/upload', requireAuth, async (req, res) => {
   try {
@@ -29,26 +36,50 @@ router.post('/upload', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'dataUrl or file data is required' });
     }
 
+    // Role-based bucket check: Only Admin can upload directly to internal-records
+    if (bucket === BUCKETS.INTERNAL && req.user.role !== 'ADMIN') {
+      return res.status(403).json({
+        error: 'Forbidden: Uploading to internal-records requires administrative privileges.',
+      });
+    }
+
     // Parse data URL format: data:[<mediatype>][;base64],<data>
     let mimeType = 'image/jpeg';
     let base64Data = dataUrl;
 
-    const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    const matches = dataUrl.match(/^data:([A-Za-z0-9-+\/.]+);base64,(.+)$/);
     if (matches && matches.length === 3) {
-      mimeType = matches[1];
+      mimeType = matches[1].toLowerCase();
       base64Data = matches[2];
+    }
+
+    // MIME Type Validation against allowlist
+    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+      return res.status(400).json({
+        error: `File type "${mimeType}" is not permitted. Allowed formats: JPEG, PNG, WebP, GIF, PDF.`,
+      });
     }
 
     // Convert base64 string to Buffer
     const buffer = Buffer.from(base64Data, 'base64');
 
-    // Generate unique sanitized filename
-    const extension = mimeType.split('/')[1] || 'jpg';
-    const cleanFileName = fileName
-      ? fileName.replace(/[^a-zA-Z0-9.-]/g, '_')
-      : `asset_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${extension}`;
+    // File size validation
+    if (buffer.length > MAX_FILE_SIZE_BYTES) {
+      return res.status(400).json({
+        error: `File size exceeds the 10 MB limit (${(buffer.length / (1024 * 1024)).toFixed(2)} MB).`,
+      });
+    }
 
-    const filePath = `${folder}/${cleanFileName}`;
+    // Sanitize folder path against path traversal attacks (alphanumeric, hyphens, underscores only)
+    const safeFolder = String(folder || 'properties').replace(/[^a-zA-Z0-9_-]/g, '') || 'properties';
+
+    // Generate safe, sanitized filename without path traversal
+    const extension = mimeType === 'application/pdf' ? 'pdf' : (mimeType.split('/')[1] || 'jpg');
+    const safeExt = extension.replace(/[^a-zA-Z0-9]/g, '');
+    const rawFileName = fileName ? path.basename(String(fileName)) : `asset_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${safeExt}`;
+    const cleanFileName = rawFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+    const filePath = `${safeFolder}/${cleanFileName}`;
 
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
@@ -88,14 +119,14 @@ router.post('/upload', requireAuth, async (req, res) => {
       size: buffer.length,
     });
   } catch (error) {
-    console.error('Unexpected error in storage upload:', error);
+    console.error('Unexpected error in storage upload:', error.message);
     return res.status(500).json({ error: 'Internal server error while uploading asset' });
   }
 });
 
 /**
  * GET /api/storage/buckets
- * Lists configured buckets and their visibility
+ * Lists configured buckets and their visibility (Requires Authentication)
  */
 router.get('/buckets', requireAuth, async (req, res) => {
   try {
@@ -111,33 +142,43 @@ router.get('/buckets', requireAuth, async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('Error fetching buckets:', err);
+    console.error('Error fetching buckets:', err.message);
     res.status(500).json({ error: 'Failed to list storage buckets' });
   }
 });
 
 /**
  * POST /api/storage/signed-url
- * Creates a temporary signed URL for private bucket objects
+ * Creates a temporary signed URL for private bucket objects.
+ * Restricts internal-records bucket access strictly to ADMIN users.
  */
 router.post('/signed-url', requireAuth, async (req, res) => {
   try {
-    const { bucket = BUCKETS.INTERNAL, path, expiresIn = 3600 } = req.body;
-    if (!path) {
+    const { bucket = BUCKETS.INTERNAL, path: objectPath, expiresIn = 3600 } = req.body;
+    if (!objectPath) {
       return res.status(400).json({ error: 'Storage object path is required' });
     }
 
+    // Role-based protection: internal-records signed URLs require ADMIN role
+    if (bucket === BUCKETS.INTERNAL && req.user.role !== 'ADMIN') {
+      return res.status(403).json({
+        error: 'Forbidden: Generating signed URLs for internal-records requires administrative privileges.',
+      });
+    }
+
+    // Sanitize path against traversal
+    const safeObjectPath = String(objectPath).replace(/\.\.[\/\\]/g, '');
+
     const { data, error } = await supabase.storage
       .from(bucket)
-      .createSignedUrl(path, Number(expiresIn) || 3600);
+      .createSignedUrl(safeObjectPath, Number(expiresIn) || 3600);
 
     if (error) throw error;
     res.json({ signedUrl: data.signedUrl });
   } catch (err) {
-    console.error('Error generating signed URL:', err);
+    console.error('Error generating signed URL:', err.message);
     res.status(500).json({ error: 'Failed to generate signed URL' });
   }
 });
 
 export default router;
-
