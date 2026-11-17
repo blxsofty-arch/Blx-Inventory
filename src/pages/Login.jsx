@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
-import { Lock, Mail, ArrowRight, AlertCircle, UserCheck, ShieldCheck, KeyRound, CheckCircle2, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, KeyRound, CheckCircle2, ArrowLeft, RefreshCw } from 'lucide-react';
 
 export default function Login({ onBrowseAsGuest }) {
   const { login } = useAuth();
-  const [email, setEmail] = useState('admin@theblxrealty.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -34,20 +34,6 @@ export default function Login({ onBrowseAsGuest }) {
     }
   };
 
-  const handleQuickLogin = async (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError('');
-    setIsLoading(true);
-    try {
-      await login(demoEmail, demoPass);
-    } catch (err) {
-      setError(err.message || 'Login failed.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleRequestRecovery = async (e) => {
     e.preventDefault();
     setError('');
@@ -59,9 +45,12 @@ export default function Login({ onBrowseAsGuest }) {
       setRecoverySent(true);
       if (data.verificationCode) {
         setGeneratedCode(data.verificationCode);
-        setRecoveryCode(data.verificationCode); // auto-populate for ease of use
+        setRecoveryCode(data.verificationCode);
+      } else {
+        setGeneratedCode('');
+        setRecoveryCode('');
       }
-      setSuccessMsg(data.message || 'Recovery code generated successfully.');
+      setSuccessMsg(data.message || 'Recovery instructions initiated. Please check your email or contact an administrator.');
     } catch (err) {
       setError(err.message || 'Failed to request recovery code.');
     } finally {
@@ -184,7 +173,7 @@ export default function Login({ onBrowseAsGuest }) {
                       type="email"
                       className="form-input"
                       style={{ width: '100%', paddingLeft: '2.5rem' }}
-                      placeholder="admin@theblxrealty.com"
+                      placeholder="you@company.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
                       required
@@ -202,9 +191,9 @@ export default function Login({ onBrowseAsGuest }) {
                   style={{ width: '100%', padding: '0.75rem', marginTop: '0.5rem', fontSize: '0.95rem' }}
                   disabled={isLoading}
                 >
-                  {isLoading ? <span>Generating Recovery Code...</span> : (
+                  {isLoading ? <span>Requesting Recovery Code...</span> : (
                     <>
-                      <span>Generate Recovery Code</span>
+                      <span>Request Recovery Code</span>
                       <ArrowRight size={16} />
                     </>
                   )}
@@ -213,23 +202,25 @@ export default function Login({ onBrowseAsGuest }) {
             ) : (
               /* Step 2: Enter Verification Code & Set New Passcode */
               <form onSubmit={handlePerformReset} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-                {generatedCode && (
-                  <div style={{
-                    background: 'rgba(183, 146, 67, 0.08)',
-                    border: '1px solid rgba(183, 146, 67, 0.3)',
-                    padding: '0.75rem 1rem',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '0.82rem',
-                    color: 'var(--text-primary)'
-                  }}>
-                    <div style={{ fontWeight: 600, color: 'var(--primary)', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <KeyRound size={15} />
-                      <span>One-Time Recovery Verification Code</span>
-                    </div>
-                    <div>Your 6-digit recovery code is: <strong style={{ fontSize: '1.05rem', letterSpacing: '0.1em', color: 'var(--text-primary)' }}>{generatedCode}</strong></div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Valid for 15 minutes. Enter this code below.</div>
+                <div style={{
+                  background: 'rgba(183, 146, 67, 0.08)',
+                  border: '1px solid rgba(183, 146, 67, 0.3)',
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: '0.82rem',
+                  color: 'var(--text-primary)'
+                }}>
+                  <div style={{ fontWeight: 600, color: 'var(--primary)', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <KeyRound size={15} />
+                    <span>One-Time Recovery Verification Code</span>
                   </div>
-                )}
+                  {generatedCode ? (
+                    <div>Your 6-digit recovery code is: <strong style={{ fontSize: '1.05rem', letterSpacing: '0.1em', color: 'var(--text-primary)' }}>{generatedCode}</strong></div>
+                  ) : (
+                    <div>Please enter the 6-digit one-time verification code sent to your registered work email or issued by your Portal Administrator.</div>
+                  )}
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Valid for 15 minutes. Single-use only.</div>
+                </div>
 
                 <div className="form-group">
                   <label className="form-label">6-Digit Recovery Code</label>
@@ -340,7 +331,7 @@ export default function Login({ onBrowseAsGuest }) {
                     type="button"
                     onClick={() => {
                       setIsResetMode(true);
-                      setResetEmail(email || 'admin@theblxrealty.com');
+                      setResetEmail(email || '');
                       setError('');
                       setSuccessMsg('');
                     }}
@@ -387,46 +378,17 @@ export default function Login({ onBrowseAsGuest }) {
               </button>
             </form>
 
-            {/* 1-Click Demo Profiles */}
-            <div style={{ marginTop: '1.75rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.75rem', textAlign: 'center' }}>
-                Instant Demo Sign-In by Role:
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ padding: '0.65rem 0.5rem', fontSize: '0.78rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}
-                  onClick={() => handleQuickLogin('sales@theblxrealty.com', '[REDACTED]')}
-                >
-                  <UserCheck size={16} style={{ color: '#059669' }} />
-                  <strong style={{ fontSize: '0.82rem' }}>EMPLOYEE</strong>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Read-Only Access</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ padding: '0.65rem 0.5rem', fontSize: '0.78rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}
-                  onClick={() => handleQuickLogin('admin@theblxrealty.com', '[REDACTED]')}
-                >
-                  <ShieldCheck size={16} style={{ color: 'var(--primary)' }} />
-                  <strong style={{ fontSize: '0.82rem' }}>ADMIN</strong>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Full Access</span>
-                </button>
-              </div>
-
-              <div style={{
-                marginTop: '1.15rem',
-                padding: '0.65rem 0.85rem',
-                background: 'var(--bg-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.75rem',
-                color: 'var(--text-muted)',
-                textAlign: 'center',
-                lineHeight: '1.4'
-              }}>
-                🔒 <strong>Strict Staff Access:</strong> Public registration is disabled. You can reset your forgotten passcode anytime using the link above.
-              </div>
+            <div style={{
+              marginTop: '1.15rem',
+              padding: '0.65rem 0.85rem',
+              background: 'var(--bg-subtle)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.75rem',
+              color: 'var(--text-muted)',
+              textAlign: 'center',
+              lineHeight: '1.5'
+            }}>
+              <strong>Strict Staff Access:</strong> Public registration is disabled. You can reset your forgotten passcode anytime using the link above.
             </div>
           </>
         )}

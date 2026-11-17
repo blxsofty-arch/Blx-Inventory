@@ -29,7 +29,7 @@ blx-realty-inventory/
 │   │   ├── PropertyModal.jsx # Add & Edit property modal with validated fields & presets
 │   │   └── ImageGallery.jsx  # Multi-image showcase with thumbnail slider & fullscreen lightbox
 │   ├── pages/
-│   │   ├── Login.jsx         # Secure internal staff login with demo account autofill
+│   │   ├── Login.jsx         # Secure internal staff login with passcode recovery
 │   │   ├── Dashboard.jsx     # Portfolio KPI dashboard with quick corridor search & recent preview
 │   │   ├── Inventory.jsx     # Complete inventory grid/list with multi-criteria filtering
 │   │   └── PropertyDetails.jsx # Complete internal specs, gallery, amenities & management actions
@@ -47,9 +47,7 @@ blx-realty-inventory/
 
 1. **Staff Login**:
    - Secure staff authentication screen.
-   - Pre-configured demo staff profiles with 1-click autofill:
-     - **Sales Advisor**: `sales@theblxrealty.com` / `[REDACTED]`
-     - **Inventory Manager**: `admin@theblxrealty.com` / `[REDACTED]`
+   - Staff-only access; public registration is disabled.
 2. **Sales Dashboard**:
    - Live KPI cards: **Total Properties**, **Available Properties**, **Sold Properties**, **On-Hold Properties**.
    - Clean search bar with quick corridor jump pills (*Kanakapura Road, North Bengaluru, Whitefield, Yeswanthpur*).

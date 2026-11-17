@@ -1,6 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
+import { randomBytes, randomInt } from 'crypto';
 import { supabase } from './supabase.js';
 
 const router = express.Router();
@@ -199,7 +200,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     const normalizedRole = user.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'EMPLOYEE';
-    const token = `blx_sess_${Math.random().toString(36).substring(2)}${Date.now()}`;
+    const token = `blx_sess_${randomBytes(32).toString('hex')}`;
     const createdAt = new Date().toISOString();
     const userData = {
       id: user.id,
@@ -305,7 +306,7 @@ async function handleForgotPasscode(req, res) {
     }
 
     // Generate secure 6-digit one-time recovery code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = randomInt(100000, 1000000).toString();
     const resetId = `rst_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 

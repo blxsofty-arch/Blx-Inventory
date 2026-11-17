@@ -91,7 +91,7 @@ router.post('/upload', requireAuth, async (req, res) => {
 
     if (error) {
       console.error('Supabase Storage upload error:', error.message);
-      return res.status(500).json({ error: 'Failed to upload asset to Supabase Storage: ' + error.message });
+      return res.status(500).json({ error: 'Failed to upload asset to Supabase Storage' });
     }
 
     // Generate URL based on whether bucket is public or private

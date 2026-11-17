@@ -100,7 +100,7 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating user in Supabase:', error.message);
-    res.status(500).json({ error: 'Failed to create staff account: ' + error.message });
+    res.status(500).json({ error: 'Failed to create staff account' });
   }
 });
 
@@ -165,7 +165,7 @@ router.put('/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating staff user in Supabase:', error.message);
-    res.status(500).json({ error: 'Failed to update staff account: ' + error.message });
+    res.status(500).json({ error: 'Failed to update staff account' });
   }
 });
 

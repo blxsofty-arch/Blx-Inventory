@@ -123,52 +123,10 @@ GRANT ALL ON TABLE public.staff_sessions TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.password_resets TO anon, authenticated, service_role;
 
 -- ------------------------------------------------------------------------------
--- 5. SEED DATA - STAFF USERS
+-- 5. STAFF USERS
 -- ------------------------------------------------------------------------------
-INSERT INTO public.staff_users (id, email, password, name, role, created_at)
-VALUES (
-  'usr_1',
-  'sales@theblxrealty.com',
-  '[REDACTED]',
-  'Siddhart Sahoo',
-  'EMPLOYEE',
-  '2026-10-01 09:47:21'
-)
-ON CONFLICT (id) DO UPDATE SET
-  email = EXCLUDED.email,
-  password = EXCLUDED.password,
-  name = EXCLUDED.name,
-  role = EXCLUDED.role;
-
-INSERT INTO public.staff_users (id, email, password, name, role, created_at)
-VALUES (
-  'usr_2',
-  'admin@theblxrealty.com',
-  '[REDACTED]',
-  'Nishchith Umesh',
-  'ADMIN',
-  '2026-10-01 09:47:21'
-)
-ON CONFLICT (id) DO UPDATE SET
-  email = EXCLUDED.email,
-  password = EXCLUDED.password,
-  name = EXCLUDED.name,
-  role = EXCLUDED.role;
-
-INSERT INTO public.staff_users (id, email, password, name, role, created_at)
-VALUES (
-  'usr_mv4uxk5b_bdm3',
-  'newagent@theblxrealty.com',
-  '[REDACTED]',
-  'New Agent',
-  'EMPLOYEE',
-  '2026-10-12 06:14:41'
-)
-ON CONFLICT (id) DO UPDATE SET
-  email = EXCLUDED.email,
-  password = EXCLUDED.password,
-  name = EXCLUDED.name,
-  role = EXCLUDED.role;
+-- No default staff accounts are seeded. Provision the first administrator
+-- through your secure internal process, then add staff from the Admin dashboard.
 
 -- ------------------------------------------------------------------------------
 -- 6. SEED DATA - PROPERTIES INVENTORY

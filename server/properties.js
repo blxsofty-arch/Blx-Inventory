@@ -341,7 +341,7 @@ router.post('/', requireAdmin, async (req, res) => {
     res.status(201).json(formatProperty(data));
   } catch (error) {
     console.error('Error adding property to Supabase:', error);
-    res.status(500).json({ error: 'Failed to add property: ' + error.message });
+    res.status(500).json({ error: 'Failed to add property' });
   }
 });
 
@@ -418,7 +418,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
     res.json(formatProperty(updated));
   } catch (error) {
     console.error('Error updating property in Supabase:', error);
-    res.status(500).json({ error: 'Failed to update property: ' + error.message });
+    res.status(500).json({ error: 'Failed to update property' });
   }
 });
 
